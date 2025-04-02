@@ -1,0 +1,57 @@
+#pragma once
+#include <Eigen/Dense>
+#include <mutex>
+
+class ErrorStateKalmanFilter
+{
+public:
+    ErrorStateKalmanFilter(double gravity, double pos_noise, double vel_noise,
+                         double ori_noise, double gyr_bias_noise,
+                         double acc_bias_noise, double pos_std, double ori_std,
+                         double gyr_noise, double acc_noise);
+
+    bool Init(Eigen::Matrix4d initPose, Eigen::Vector3d initVel,  long long tc);
+    bool Predict(Eigen::Vector3d imu_acc, Eigen::Vector3d imu_gyr, Eigen::Vector3d& pos, Eigen::Vector3d& vel, Eigen::Vector3d& angle_vel, Eigen::Quaterniond& q,  long long tc);
+    bool correct(Eigen::Vector3d gps_pos, Eigen::Quaterniond gps_q);
+    
+
+private:
+    static const unsigned int DIM_STATE = 15; // 状态量数量
+    static const unsigned int DIM_STATE_NOISE = 6;
+    static const unsigned int DIM_MEASUREMENT = 6;
+    static const unsigned int DIM_MEASUREMENT_NOISE = 6;
+    static const unsigned int INDEX_STATE_POSI = 0;
+    static const unsigned int INDEX_STATE_VEL = 3;
+    static const unsigned int INDEX_STATE_ORI = 6;
+    static const unsigned int INDEX_STATE_GYRO_BIAS = 9;
+    static const unsigned int INDEX_STATE_ACC_BIAS = 12;
+    static const unsigned int INDEX_MEASUREMENT_POSI = 0;
+    
+    Eigen::Matrix<double, DIM_STATE, 1> m_X = Eigen::Matrix<double, DIM_STATE, 1>::Zero(); // 真值：位置 速度 姿态 角速度偏置 加速度偏置
+    Eigen::Matrix<double, DIM_MEASUREMENT, 1> m_Y = Eigen::Matrix<double, DIM_MEASUREMENT, 1>::Zero(); // 测量矩阵
+    Eigen::Matrix<double, DIM_STATE, DIM_STATE> m_F = Eigen::Matrix<double, DIM_STATE, DIM_STATE>::Zero(); // 状态转移矩阵
+    Eigen::Matrix<double, DIM_STATE, DIM_STATE_NOISE> m_B = Eigen::Matrix<double, DIM_STATE, DIM_STATE_NOISE>::Zero(); // 噪声输入矩阵，将噪声输入到系统的影响
+    Eigen::Matrix<double, DIM_STATE_NOISE, DIM_STATE_NOISE> m_Q = Eigen::Matrix<double, DIM_STATE_NOISE, DIM_STATE_NOISE>::Zero(); // 过程噪声协方差矩阵
+    Eigen::Matrix<double, DIM_STATE, DIM_STATE> m_P = Eigen::Matrix<double, DIM_STATE, DIM_STATE>::Zero(); // 状态协方差矩阵
+    Eigen::Matrix<double, DIM_STATE, DIM_MEASUREMENT> m_K = Eigen::Matrix<double, DIM_STATE, DIM_MEASUREMENT>::Zero(); // 卡尔曼增益
+    Eigen::Matrix<double, DIM_MEASUREMENT, DIM_STATE> m_G = Eigen::Matrix<double, DIM_MEASUREMENT, DIM_STATE>::Zero(); // 测量矩阵
+    Eigen::Matrix<double, DIM_MEASUREMENT, DIM_MEASUREMENT> m_R = Eigen::Matrix<double, DIM_MEASUREMENT, DIM_MEASUREMENT>::Zero(); // 测量噪声
+    Eigen::Matrix<double, DIM_MEASUREMENT_NOISE, DIM_MEASUREMENT_NOISE> m_C = Eigen::Matrix<double, DIM_MEASUREMENT_NOISE, DIM_MEASUREMENT_NOISE>::Zero(); // 测量噪声的变换矩阵
+
+    // 定义 IMU 数据
+    Eigen::Vector3d m_velocity = Eigen::Vector3d::Zero(); // 速度
+    Eigen::Vector3d m_gyro = Eigen::Vector3d::Zero();     // 陀螺仪数据
+    Eigen::Matrix4d m_pose = Eigen::Matrix4d::Identity(); // 姿态矩阵 (位置 + 旋转)
+    Eigen::Vector3d m_gyro_bias = Eigen::Vector3d::Zero(); // 陀螺仪偏置
+    Eigen::Vector3d m_accel_bias = Eigen::Vector3d::Zero(); // 加速度计偏置
+    Eigen::Vector3d m_g = Eigen::Vector3d::Zero();         // 重力加速度
+
+    // SLAM输入数据
+    Eigen::Vector3d m_slam_position = Eigen::Vector3d::Zero(); // 雷达位置数据
+
+    Eigen::Vector3d m_last_unbias_acc;
+    Eigen::Vector3d m_last_unbias_gyr;
+    long long m_last_imu_tc;
+    std::mutex m_mtx;
+
+};
