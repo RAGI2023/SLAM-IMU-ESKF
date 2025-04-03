@@ -24,6 +24,7 @@ find_package(rclpy REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(nav_msgs REQUIRED)
 
 add_executable(eskf src/slam_imu.cpp)
 target_include_directories(eskf PUBLIC ${CMAKE_SOURCE_DIR}/include ${EIGEN3_INCLUDE_DIR})
