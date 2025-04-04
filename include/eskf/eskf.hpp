@@ -39,7 +39,7 @@ class ErrorStateKalmanFilter {
    * @param slam_pos slam获取的位置
    * @param slam_q slam获取的旋转
    */
-  void correct(Eigen::Vector3d gps_pos, Eigen::Quaterniond slam_q);
+  void correct(Eigen::Vector3d slam_pos, Eigen::Quaterniond slam_q);
 
  private:
   static const unsigned int DIM_STATE = 15;  // 状态量数量

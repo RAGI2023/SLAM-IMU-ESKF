@@ -1,4 +1,5 @@
 #include <functional>
+#include <iostream>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/clock.hpp>
 #include <rclcpp/create_subscription.hpp>
@@ -23,10 +24,11 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
       : ErrorStateKalmanFilter(gravity, pos_noise, vel_noise, ori_noise,
                                gyr_bias_noise, acc_bias_noise, pos_std, ori_std,
                                gyr_noise, acc_noise),
-        Node(node_name) {
+        Node(node_name),
+        gravity_(-gravity) {
     // 构建imu odom订阅 高频定位发布
     imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
-        imu_topic, 100,
+        imu_topic, 1,
         std::bind(&SLAM_IMU_Filter::imu_cb, this, std::placeholders::_1));
     odo_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
         odom_topic, 10,
@@ -43,6 +45,7 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odo_sub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr out_pub_;
+  double gravity_;  // 重力加速度大小，正数
 
   void initESKF(Eigen::Vector3d pose = Eigen::Vector3d::Zero(),
                 Eigen::Quaterniond q = Eigen::Quaterniond::Identity(),
@@ -51,7 +54,8 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
     Eigen::Matrix4d init_pose = Eigen::Matrix4d::Identity();
     init_pose.block<3, 3>(0, 0) = q.toRotationMatrix();
     init_pose.block<3, 1>(0, 3) = pose;
-    this->Init(init_pose, vel, time);
+    Init(init_pose, vel, time);
+    isInitialized = true;
     // this->Init(init_pose, vel, rclcpp::Clock().now().nanoseconds());
   }
 
@@ -59,10 +63,19 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
     if (this->isInitialized) {
       Eigen::Vector3d pose, vel, angle_vel;
       Eigen::Quaterniond q;
-      bool success = this->Predict(
-          Eigen::Vector3d(msg->linear_acceleration.x,
-                          msg->linear_acceleration.y,
-                          msg->linear_acceleration.z),
+      Eigen::Vector3d linear_acce(msg->linear_acceleration.x,
+                                  msg->linear_acceleration.y,
+                                  msg->linear_acceleration.z);
+      std::cout << "Raw IMU acceleration: x=" << msg->linear_acceleration.x
+                << ", y=" << msg->linear_acceleration.y
+                << ", z=" << msg->linear_acceleration.z << std::endl;
+      // livox mid 360 imu数据单位是g！
+      linear_acce *= gravity_;
+      linear_acce[2] = -linear_acce[2];
+      std::cout << "linear accelerate ";
+      std::cout << linear_acce << std::endl;
+      bool success = Predict(
+          linear_acce,
           Eigen::Vector3d(msg->angular_velocity.x, msg->angular_velocity.y,
                           msg->angular_velocity.z),
           pose, vel, angle_vel, q, msg->header.stamp.nanosec);
@@ -92,12 +105,12 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
   }
   void odom_cb(const nav_msgs::msg::Odometry::SharedPtr msg) {
     if (this->isInitialized) {
-      Eigen::Vector3d pose(msg->pose.pose.position.x, msg->pose.pose.position.y,
-                           msg->pose.pose.position.z);
+      Eigen::Vector3d pos(msg->pose.pose.position.x, msg->pose.pose.position.y,
+                          msg->pose.pose.position.z);
       Eigen::Quaterniond q(
           msg->pose.pose.orientation.w, msg->pose.pose.orientation.x,
           msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
-      this->correct(pose, q);
+      correct(pos, q);
     } else {
       Eigen::Vector3d pose(msg->pose.pose.position.x, msg->pose.pose.position.y,
                            msg->pose.pose.position.z);
@@ -115,7 +128,7 @@ int main(int argc, char **argv) {
   auto node =
       std::make_shared<SLAM_IMU_Filter>("eskf_node",   // 节点名
                                         "/livox/imu",  // imu话题
-                                        "/odometry",   // slam 里程计话题
+                                        "/Odometry",   // slam 里程计话题
                                         "/eskf_odom",  // 输出话题
                                         -9.8015,       // 重力
                                         0.1,           // 位置噪声

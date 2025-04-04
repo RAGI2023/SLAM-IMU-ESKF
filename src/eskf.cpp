@@ -35,8 +35,8 @@ ErrorStateKalmanFilter::ErrorStateKalmanFilter(
   m_P.block<3, 3>(INDEX_STATE_ACC_BIAS, INDEX_STATE_ACC_BIAS) =
       Eigen::Matrix3d::Identity() * acc_bias_noise * acc_bias_noise;
   // 初始化测量噪声矩阵
-  m_R.block<3, 3>(0, 0) = Eigen::Matrix3d::Ones() * pos_std * pos_std;
-  m_R.block<3, 3>(3, 3) = Eigen::Matrix3d::Ones() * ori_std * ori_std;
+  m_R.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity() * pos_std * pos_std;
+  m_R.block<3, 3>(3, 3) = Eigen::Matrix3d::Identity() * ori_std * ori_std;
   // 初始化过程噪声协方差矩阵
   m_Q.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity() * gyr_noise * gyr_noise;
   m_Q.block<3, 3>(3, 3) = Eigen::Matrix3d::Identity() * acc_noise * acc_noise;
@@ -88,7 +88,7 @@ bool ErrorStateKalmanFilter::Predict(Eigen::Vector3d imu_acc,
   double phi_norm = phi.norm();
   // 更新旋转矩阵
   Eigen::Matrix3d skew_sym_m_phi;
-  skew_sym_m_phi << 0.0, -phi[2], phi[1], phi[2], 0.0, -phi[0], -phi[1], phi[0],
+  skew_sym_m_phi << 0.0, -phi[2], phi[1], phi[2], 0.0, -phi[0], phi[1], phi[0],
       0.0;
   Eigen::Matrix3d R_i0_i1 = Eigen::Matrix3d::Identity() +
                             sinf64(phi_norm) / phi_norm * skew_sym_m_phi +
@@ -179,10 +179,9 @@ void ErrorStateKalmanFilter::correct(Eigen::Vector3d slam_pos,
   m_pose.block<3, 1>(0, 3) =
       m_pose.block<3, 1>(0, 3) + m_X.block<3, 1>(INDEX_STATE_POSI, 0);
   m_velocity = (m_velocity + m_X.block<3, 1>(INDEX_STATE_VEL, 0));
-  // Eigen::Matrix3d phi_hat;
-  // phi_hat << 0, - m_X(8, 0), m_X(7, 0),
-  //         m_X(8, 0), 0,  -m_X(6, 0),
-  //         -m_X(7, 0), m_X(6, 0), 0;
+  Eigen::Matrix3d phi_hat;
+  phi_hat << 0, -m_X(8, 0), m_X(7, 0), m_X(8, 0), 0, -m_X(6, 0), -m_X(7, 0),
+      m_X(6, 0), 0;
   Eigen::AngleAxisd tmp22;
   tmp22.angle() = m_X.block<3, 1>(6, 0).norm();
   tmp22.axis() = m_X.block<3, 1>(6, 0).normalized();
