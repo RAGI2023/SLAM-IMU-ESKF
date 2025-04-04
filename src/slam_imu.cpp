@@ -18,7 +18,8 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
                   const std::string &out_topic_name, double gravity,
                   double pos_noise, double vel_noise, double ori_noise,
                   double gyr_bias_noise, double acc_bias_noise, double pos_std,
-                  double ori_std, double gyr_noise, double acc_noise)
+                  double ori_std, double gyr_noise, double acc_noise,
+                  bool init_ESKF = false)
       : ErrorStateKalmanFilter(gravity, pos_noise, vel_noise, ori_noise,
                                gyr_bias_noise, acc_bias_noise, pos_std, ori_std,
                                gyr_noise, acc_noise),
@@ -32,7 +33,9 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
         std::bind(&SLAM_IMU_Filter::odom_cb, this, std::placeholders::_1));
     out_pub_ =
         this->create_publisher<nav_msgs::msg::Odometry>(out_topic_name, 1);
-    initESKF();
+    if (init_ESKF) {
+      initESKF();
+    }
     RCLCPP_INFO(this->get_logger(), "%s Node start.", node_name.c_str());
   }
 
@@ -41,17 +44,17 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odo_sub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr out_pub_;
 
-  void initESKF() {
-    // 构建单位四元数，无旋转
-    Eigen::Quaterniond q = Eigen::Quaterniond::Identity();
-    // 初始化初始位姿，无旋转，处于原点，静止
+  void initESKF(Eigen::Vector3d pose = Eigen::Vector3d::Zero(),
+                Eigen::Quaterniond q = Eigen::Quaterniond::Identity(),
+                Eigen::Vector3d vel = Eigen::Vector3d::Zero(),
+                long long time = rclcpp::Clock().now().nanoseconds()) {
     Eigen::Matrix4d init_pose = Eigen::Matrix4d::Identity();
     init_pose.block<3, 3>(0, 0) = q.toRotationMatrix();
-    init_pose.block<3, 1>(0, 3) = Eigen::Vector3d::Zero();
-    Eigen::Vector3d init_vel = Eigen::Vector3d::Zero();
-    // 获取时间戳
-    this->Init(init_pose, init_vel, rclcpp::Clock().now().nanoseconds());
+    init_pose.block<3, 1>(0, 3) = pose;
+    this->Init(init_pose, vel, time);
+    // this->Init(init_pose, vel, rclcpp::Clock().now().nanoseconds());
   }
+
   void imu_cb(const sensor_msgs::msg::Imu::SharedPtr msg) {
     if (this->isInitialized) {
       Eigen::Vector3d pose, vel, angle_vel;
@@ -95,6 +98,14 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
           msg->pose.pose.orientation.w, msg->pose.pose.orientation.x,
           msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
       this->correct(pose, q);
+    } else {
+      Eigen::Vector3d pose(msg->pose.pose.position.x, msg->pose.pose.position.y,
+                           msg->pose.pose.position.z);
+      Eigen::Quaterniond q(
+          msg->pose.pose.orientation.w, msg->pose.pose.orientation.x,
+          msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
+      long long time = msg->header.stamp.nanosec;
+      initESKF(pose, q, Eigen::Vector3d::Zero(), time);
     }
   }
 };
@@ -115,7 +126,8 @@ int main(int argc, char **argv) {
                                         0.5 * 10,  // slam位置测量标准差
                                         1.0,       // slam姿态测量标准差
                                         0.00143,   // 陀螺仪过程噪声
-                                        0.0386     // 加速度计过程噪声
+                                        0.0386,    // 加速度计过程噪声
+                                        false  // 是否使用当前时间初始化
       );
   rclcpp::spin(node);
   rclcpp::shutdown();
