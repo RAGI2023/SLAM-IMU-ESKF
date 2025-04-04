@@ -1,5 +1,4 @@
 #include <functional>
-#include <nav_msgs/msg/detail/odometry__struct.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/clock.hpp>
 #include <rclcpp/create_subscription.hpp>
@@ -46,10 +45,10 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
     // 构建单位四元数，无旋转
     Eigen::Quaterniond q = Eigen::Quaterniond::Identity();
     // 初始化初始位姿，无旋转，处于原点，静止
-    Eigen::Matrix3d init_pose = Eigen::Matrix4d::Identity();
+    Eigen::Matrix4d init_pose = Eigen::Matrix4d::Identity();
     init_pose.block<3, 3>(0, 0) = q.toRotationMatrix();
-    init_pose.block<3, 1>(0, 3) = Eigen::Matrix3d::Zero();
-    Eigen::Matrix3d init_vel = Eigen::Matrix3d::Zero();
+    init_pose.block<3, 1>(0, 3) = Eigen::Vector3d::Zero();
+    Eigen::Vector3d init_vel = Eigen::Vector3d::Zero();
     // 获取时间戳
     this->Init(init_pose, init_vel, rclcpp::Clock().now().nanoseconds());
   }
@@ -102,8 +101,23 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
 
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<SLAM_IMU_Filter>("");
-  // rclcpp::spin(node);
+  auto node =
+      std::make_shared<SLAM_IMU_Filter>("eskf_node",   // 节点名
+                                        "/livox/imu",  // imu话题
+                                        "/odometry",   // slam 里程计话题
+                                        "/eskf_odom",  // 输出话题
+                                        -9.8015,       // 重力
+                                        0.1,           // 位置噪声
+                                        0.1,           // 速度噪声
+                                        0.1,           // 姿态噪声
+                                        0.0003158085227,  // 陀螺仪偏置噪声
+                                        0.001117221,  // 加速度计偏置噪声
+                                        0.5 * 10,  // slam位置测量标准差
+                                        1.0,       // slam姿态测量标准差
+                                        0.00143,   // 陀螺仪过程噪声
+                                        0.0386     // 加速度计过程噪声
+      );
+  rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;
 }

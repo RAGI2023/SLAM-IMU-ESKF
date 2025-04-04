@@ -13,8 +13,8 @@
  * @param ori_noise 姿态噪声
  * @param gyr_bias_noise 陀螺仪偏置噪声
  * @param acc_bias_noise 加速度计偏置噪声
- * @param pos_std 位置测量标准差
- * @param ori_std 姿态测量标准差
+ * @param pos_std slam位置测量标准差
+ * @param ori_std slam姿态测量标准差
  * @param gyr_noise 陀螺仪过程噪声
  * @param acc_noise 加速度计过程噪声
  */

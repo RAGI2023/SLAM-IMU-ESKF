@@ -25,10 +25,12 @@ find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
-add_executable(eskf src/slam_imu.cpp)
+
+add_executable(eskf src/slam_imu.cpp src/eskf.cpp)
 target_include_directories(eskf PUBLIC ${CMAKE_SOURCE_DIR}/include ${EIGEN3_INCLUDE_DIR})
-ament_target_dependencies(eskf rclcpp)
+ament_target_dependencies(eskf rclcpp sensor_msgs nav_msgs)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
