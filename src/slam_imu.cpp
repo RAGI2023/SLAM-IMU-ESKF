@@ -1,6 +1,8 @@
+#include <chrono>
 #include <functional>
 #include <iostream>
 #include <nav_msgs/msg/odometry.hpp>
+#include <ostream>
 #include <rclcpp/clock.hpp>
 #include <rclcpp/create_subscription.hpp>
 #include <rclcpp/executors.hpp>
@@ -61,6 +63,7 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
 
   void imu_cb(const sensor_msgs::msg::Imu::SharedPtr msg) {
     if (this->isInitialized) {
+      auto start_time = std::chrono::high_resolution_clock::now();
       Eigen::Vector3d pose, vel, angle_vel;
       Eigen::Quaterniond q;
       Eigen::Vector3d linear_acce(msg->linear_acceleration.x,
@@ -100,7 +103,17 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
         pub_msg.twist.twist.angular.z = angle_vel.z();
 
         out_pub_->publish(pub_msg);
+      } else {
+        std::cout << "Predict Skip" << std::endl;
       }
+      auto end_time = std::chrono::high_resolution_clock::now();
+
+      // Calculate the duration in milliseconds
+      std::chrono::duration<double> duration = end_time - start_time;
+
+      // Print the time taken to execute the function
+      std::cout << "imu_cb execution time: " << duration.count() * 1000.0
+                << " ms" << std::endl;
     }
   }
   void odom_cb(const nav_msgs::msg::Odometry::SharedPtr msg) {

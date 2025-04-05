@@ -5,6 +5,21 @@
 class ErrorStateKalmanFilter {
  public:
   bool isInitialized = false;
+  /**
+   * @brief Construct a new Error State Kalman Filter:: Error State Kalman
+   * Filter object
+   *
+   * @param gravity 重力加速度
+   * @param pos_noise 位置噪声
+   * @param vel_noise 速度噪声
+   * @param ori_noise 姿态噪声
+   * @param gyr_bias_noise 陀螺仪偏置噪声
+   * @param acc_bias_noise 加速度计偏置噪声
+   * @param pos_std slam位置测量标准差
+   * @param ori_std slam姿态测量标准差
+   * @param gyr_noise 陀螺仪过程噪声
+   * @param acc_noise 加速度计过程噪声
+   */
   ErrorStateKalmanFilter(double gravity, double pos_noise, double vel_noise,
                          double ori_noise, double gyr_bias_noise,
                          double acc_bias_noise, double pos_std, double ori_std,

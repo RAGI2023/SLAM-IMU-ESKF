@@ -42,10 +42,15 @@ if(BUILD_TESTING)
   #set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
+ament_python_install_package(${PROJECT_NAME})
 
 install(TARGETS
   eskf
   DESTINATION lib/${PROJECT_NAME}
 )
 
+install(PROGRAMS
+  eskf/errorViewer.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 ament_package()

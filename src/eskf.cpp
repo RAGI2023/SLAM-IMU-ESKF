@@ -3,21 +3,6 @@
 #include <iostream>
 #include <mutex>
 
-/**
- * @brief Construct a new Error State Kalman Filter:: Error State Kalman Filter
- * object
- *
- * @param gravity 重力加速度
- * @param pos_noise 位置噪声
- * @param vel_noise 速度噪声
- * @param ori_noise 姿态噪声
- * @param gyr_bias_noise 陀螺仪偏置噪声
- * @param acc_bias_noise 加速度计偏置噪声
- * @param pos_std slam位置测量标准差
- * @param ori_std slam姿态测量标准差
- * @param gyr_noise 陀螺仪过程噪声
- * @param acc_noise 加速度计过程噪声
- */
 ErrorStateKalmanFilter::ErrorStateKalmanFilter(
     double gravity, double pos_noise, double vel_noise, double ori_noise,
     double gyr_bias_noise, double acc_bias_noise, double pos_std,
@@ -73,8 +58,9 @@ bool ErrorStateKalmanFilter::Predict(Eigen::Vector3d imu_acc,
                                      Eigen::Quaterniond& q, long long tc) {
   // 计算时间差
   double delta_t = (tc - m_last_imu_tc) / 1000000000.0;
-  if (delta_t < 0.005 || delta_t > 0.015) {
+  if (delta_t > 0.015) {
     m_last_imu_tc = tc;
+    std::cout << "IMU delta t " << delta_t << std::endl;
     return false;
   }
 
@@ -139,6 +125,7 @@ bool ErrorStateKalmanFilter::Predict(Eigen::Vector3d imu_acc,
   // 计算状态转移矩阵
   Eigen::Matrix<double, DIM_STATE, DIM_STATE> Fk =
       Eigen::Matrix<double, DIM_STATE, DIM_STATE>::Identity() + m_F * delta_t;
+  //   TODO Q不会更新
   Eigen::Matrix<double, DIM_STATE, DIM_STATE_NOISE> Bk = m_B * delta_t;
   // 更新状态
   m_X = Fk * m_X;
