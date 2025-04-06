@@ -138,23 +138,23 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
 
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
-  auto node =
-      std::make_shared<SLAM_IMU_Filter>("eskf_node",   // 节点名
-                                        "/livox/imu",  // imu话题
-                                        "/Odometry",   // slam 里程计话题
-                                        "/eskf_odom",  // 输出话题
-                                        -9.8015,       // 重力
-                                        0.1,           // 位置噪声
-                                        0.1,           // 速度噪声
-                                        0.1,           // 姿态噪声
-                                        0.0003158085227,  // 陀螺仪偏置噪声
-                                        0.001117221,  // 加速度计偏置噪声
-                                        0.006511,  // slam位置测量标准差
-                                        1.179523e-03,  // slam姿态测量标准差
-                                        0.00143,       // 陀螺仪过程噪声
-                                        0.0386,  // 加速度计过程噪声
-                                        false  // 是否使用当前时间初始化
-      );
+  auto node = std::make_shared<SLAM_IMU_Filter>(
+      "eskf_node",            // 节点名
+      "/livox/imu",           // imu话题
+      "/Odometry",            // slam 里程计话题
+      "/eskf_odom",           // 输出话题
+      -9.8015,                // 重力
+      0.1,                    // 位置噪声
+      0.1,                    // 速度噪声
+      0.1,                    // 姿态噪声
+      0.0003158085227 * 1.5,  // 陀螺仪偏置噪声
+      0.001117221 * 1.5,      // 加速度计偏置噪声
+      0.006511,               // slam位置测量标准差
+      1.179523e-03,           // slam姿态测量标准差
+      0.00143,                // 陀螺仪过程噪声
+      0.0386,                 // 加速度计过程噪声
+      false                   // 是否使用当前时间初始化
+  );
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;
