@@ -15,6 +15,7 @@ class ErrorStateKalmanFilter {
    * @param ori_noise 姿态噪声
    * @param gyr_bias_noise 陀螺仪偏置噪声
    * @param acc_bias_noise 加速度计偏置噪声
+   * @param pos_vel_corr 速度位置协方差
    * @param pos_std slam位置测量标准差
    * @param ori_std slam姿态测量标准差
    * @param gyr_noise 陀螺仪过程噪声
@@ -22,8 +23,9 @@ class ErrorStateKalmanFilter {
    */
   ErrorStateKalmanFilter(double gravity, double pos_noise, double vel_noise,
                          double ori_noise, double gyr_bias_noise,
-                         double acc_bias_noise, double pos_std, double ori_std,
-                         double gyr_noise, double acc_noise);
+                         double acc_bias_noise, double pos_vel_corr,
+                         double pos_std, double ori_std, double gyr_noise,
+                         double acc_noise);
   /**
    * @brief 初始化ESKF
    *

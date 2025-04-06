@@ -20,12 +20,12 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
                   const std::string &odom_topic,
                   const std::string &out_topic_name, double gravity,
                   double pos_noise, double vel_noise, double ori_noise,
-                  double gyr_bias_noise, double acc_bias_noise, double pos_std,
-                  double ori_std, double gyr_noise, double acc_noise,
-                  bool init_ESKF = false)
+                  double gyr_bias_noise, double acc_bias_noise,
+                  double pos_vel_corr, double pos_std, double ori_std,
+                  double gyr_noise, double acc_noise, bool init_ESKF = false)
       : ErrorStateKalmanFilter(gravity, pos_noise, vel_noise, ori_noise,
-                               gyr_bias_noise, acc_bias_noise, pos_std, ori_std,
-                               gyr_noise, acc_noise),
+                               gyr_bias_noise, acc_bias_noise, pos_vel_corr,
+                               pos_std, ori_std, gyr_noise, acc_noise),
         Node(node_name),
         gravity_(-gravity) {
     // 构建imu odom订阅 高频定位发布
@@ -138,23 +138,24 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
 
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<SLAM_IMU_Filter>(
-      "eskf_node",            // 节点名
-      "/livox/imu",           // imu话题
-      "/Odometry",            // slam 里程计话题
-      "/eskf_odom",           // 输出话题
-      -9.8015,                // 重力
-      0.1,                    // 位置噪声
-      0.1,                    // 速度噪声
-      0.1,                    // 姿态噪声
-      0.0003158085227 * 1.5,  // 陀螺仪偏置噪声
-      0.001117221 * 1.5,      // 加速度计偏置噪声
-      0.006511,               // slam位置测量标准差
-      1.179523e-03,           // slam姿态测量标准差
-      0.00143,                // 陀螺仪过程噪声
-      0.0386,                 // 加速度计过程噪声
-      false                   // 是否使用当前时间初始化
-  );
+  auto node =
+      std::make_shared<SLAM_IMU_Filter>("eskf_node",   // 节点名
+                                        "/livox/imu",  // imu话题
+                                        "/Odometry",   // slam 里程计话题
+                                        "/eskf_odom",  // 输出话题
+                                        -9.8015,       // 重力
+                                        0.1,           // 位置噪声
+                                        0.1,           // 速度噪声
+                                        0.1,           // 姿态噪声
+                                        0.0003158085227 * 3,  // 陀螺仪偏置噪声
+                                        0.001117221 * 3,  // 加速度计偏置噪声
+                                        0.03,      // 速度位置协方差
+                                        0.006511,  // slam位置测量标准差
+                                        1.179523e-03,  // slam姿态测量标准差
+                                        0.00143,       // 陀螺仪过程噪声
+                                        0.0386,  // 加速度计过程噪声
+                                        false  // 是否使用当前时间初始化
+      );
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;

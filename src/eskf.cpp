@@ -5,10 +5,16 @@
 
 ErrorStateKalmanFilter::ErrorStateKalmanFilter(
     double gravity, double pos_noise, double vel_noise, double ori_noise,
-    double gyr_bias_noise, double acc_bias_noise, double pos_std,
-    double ori_std, double gyr_noise, double acc_noise) {
+    double gyr_bias_noise, double acc_bias_noise, double pos_vel_corr,
+    double pos_std, double ori_std, double gyr_noise, double acc_noise) {
   m_g = Eigen::Vector3d(0.0, 0.0, gravity);
   // 初始化协方差矩阵，协方差设为0，设置方差
+  //   double pos_vel_corr = 0.03;
+
+  m_P.block<3, 3>(INDEX_STATE_POSI, INDEX_STATE_VEL) =
+      Eigen::Matrix3d::Identity() * pos_vel_corr;
+  m_P.block<3, 3>(INDEX_STATE_VEL, INDEX_STATE_POSI) =
+      Eigen::Matrix3d::Identity() * pos_vel_corr;
   m_P.block<3, 3>(INDEX_STATE_POSI, INDEX_STATE_POSI) =
       Eigen::Matrix3d::Identity() * pos_noise * pos_noise;
   m_P.block<3, 3>(INDEX_STATE_VEL, INDEX_STATE_VEL) =
