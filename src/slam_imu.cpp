@@ -1,6 +1,9 @@
+#include <signal.h>  // 处理 Ctrl+C
+
 #include <chrono>
 #include <functional>
 #include <iostream>
+#include <memory>
 #include <nav_msgs/msg/odometry.hpp>
 #include <ostream>
 #include <rclcpp/clock.hpp>
@@ -16,6 +19,30 @@
 
 class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
  public:
+  SLAM_IMU_Filter(const std::string &node_name, const std::string &imu_topic,
+                  const std::string &odom_topic,
+                  const std::string &out_topic_name, double gravity,
+                  double pos_std, double ori_std, double gyr_noise,
+                  double acc_noise, const std::string &filename,
+                  bool init_ESKF = false)
+      : ErrorStateKalmanFilter(gravity, pos_std, ori_std, gyr_noise, acc_noise,
+                               filename),
+        Node(node_name),
+        gravity_(-gravity) {
+    imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
+        imu_topic, 1,
+        std::bind(&SLAM_IMU_Filter::imu_cb, this, std::placeholders::_1));
+    odo_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+        odom_topic, 10,
+        std::bind(&SLAM_IMU_Filter::odom_cb, this, std::placeholders::_1));
+    out_pub_ =
+        this->create_publisher<nav_msgs::msg::Odometry>(out_topic_name, 1);
+    if (init_ESKF) {
+      initESKF();
+    }
+    RCLCPP_INFO(this->get_logger(), "%s Node start.", node_name.c_str());
+  }
+
   SLAM_IMU_Filter(const std::string &node_name, const std::string &imu_topic,
                   const std::string &odom_topic,
                   const std::string &out_topic_name, double gravity,
@@ -135,28 +162,66 @@ class SLAM_IMU_Filter : public ErrorStateKalmanFilter, public rclcpp::Node {
     }
   }
 };
+std::shared_ptr<SLAM_IMU_Filter> node_ptr = nullptr;
+void signal_handler(int signal) {
+  if (signal == SIGINT) {
+    RCLCPP_INFO(rclcpp::get_logger("eskf_node"),
+                "Caught Ctrl+C (SIGINT), start shutdown process...");
+
+    if (node_ptr) {
+      node_ptr->printParameters(
+          "/home/yin/eskf_ws/out.txt");  // 调用你自定义的保存函数
+    }
+
+    rclcpp::shutdown();  // 通知rclcpp退出
+  }
+}
 
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
-  auto node =
-      std::make_shared<SLAM_IMU_Filter>("eskf_node",   // 节点名
-                                        "/livox/imu",  // imu话题
-                                        "/Odometry",   // slam 里程计话题
-                                        "/eskf_odom",  // 输出话题
-                                        -9.8015,       // 重力
-                                        0.1,           // 位置噪声
-                                        0.1,           // 速度噪声
-                                        0.1,           // 姿态噪声
-                                        0.0003158085227 * 3,  // 陀螺仪偏置噪声
-                                        0.001117221 * 3,  // 加速度计偏置噪声
-                                        0.03,      // 速度位置协方差
-                                        0.006511,  // slam位置测量标准差
-                                        1.179523e-03,  // slam姿态测量标准差
-                                        0.00143,       // 陀螺仪过程噪声
-                                        0.0386,  // 加速度计过程噪声
-                                        false  // 是否使用当前时间初始化
-      );
-  rclcpp::spin(node);
+  // node_ptr =
+  //     std::make_shared<SLAM_IMU_Filter>("eskf_node",   // 节点名
+  //                                       "/livox/imu",  // imu话题
+  //                                       "/Odometry",   // slam 里程计话题
+  //                                       "/eskf_odom",  // 输出话题
+  //                                       -9.8015,       // 重力
+  //                                       0.1,           // 位置噪声
+  //                                       0.1,           // 速度噪声
+  //                                       0.1,           // 姿态噪声
+  //                                       0.0003158085227 * 3,  //
+  //                                       陀螺仪偏置噪声 0.001117221 * 3,  //
+  //                                       加速度计偏置噪声 0.03,      //
+  //                                       速度位置协方差 0.006511,  //
+  //                                       slam位置测量标准差 1.179523e-03,  //
+  //                                       slam姿态测量标准差 0.00143,       //
+  //                                       陀螺仪过程噪声 0.0386,  //
+  //                                       加速度计过程噪声 false  //
+  //                                       是否使用当前时间初始化
+  //     );
+
+  /*SLAM_IMU_Filter(const std::string &node_name, const std::string &imu_topic,
+                  const std::string &odom_topic,
+                  const std::string &out_topic_name, double gravity,
+                  double pos_std, double ori_std, double gyr_noise,
+                  double acc_noise, const std::string &filename,
+                  bool init_ESKF = false)*/
+  node_ptr = std::make_shared<SLAM_IMU_Filter>(
+      "eskf_node",                   // 节点名
+      "/livox/imu",                  // imu话题
+      "/Odometry",                   // slam 里程计话题
+      "/eskf_odom",                  // 输出话题
+      -9.8015,                       // 重力
+      0.006511,                      // slam位置测量标准差
+      1.179523e-03,                  // slam姿态测量标准差
+      0.00143,                       // 陀螺仪过程噪声
+      0.0386,                        // 加速度计过程噪声
+      "/home/yin/eskf_ws/read.txt",  // 协方差矩阵文件
+      false                          // 是否使用当前时间初始化
+
+  );
+
+  signal(SIGINT, signal_handler);  // 处理Ctrl+C信号
+  rclcpp::spin(node_ptr);
   rclcpp::shutdown();
   return 0;
 }

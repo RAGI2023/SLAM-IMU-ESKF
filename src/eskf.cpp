@@ -1,7 +1,70 @@
 #include "eskf/eskf.hpp"
 
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <mutex>
+#include <sstream>
+
+ErrorStateKalmanFilter::ErrorStateKalmanFilter(
+    double gravity, double pos_std, double ori_std, double gyr_noise,
+    double acc_noise, const Eigen::Matrix<double, 15, 15> P,
+    Eigen::Vector3d gyro_bias, Eigen::Vector3d accel_bias) {
+  m_g = Eigen::Vector3d(0.0, 0.0, gravity);
+  // 初始化协方差矩阵，协方差设为0，设置方差
+  //   double pos_vel_corr = 0.03;
+  m_P = P;
+  // 初始化测量噪声矩阵
+  m_R.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity() * pos_std * pos_std;
+  m_R.block<3, 3>(3, 3) = Eigen::Matrix3d::Identity() * ori_std * ori_std;
+  // 初始化过程噪声协方差矩阵
+  m_Q.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity() * gyr_noise * gyr_noise;
+  m_Q.block<3, 3>(3, 3) = Eigen::Matrix3d::Identity() * acc_noise * acc_noise;
+  // 初始真值为0
+  m_X = Eigen::Matrix<double, DIM_STATE, 1>::Zero();
+  // 状态转移矩阵赋为0
+  m_F = Eigen::Matrix<double, DIM_STATE, DIM_STATE>::Zero();
+  // 测量噪声的变换矩阵
+  m_C = Eigen::Matrix<double, DIM_MEASUREMENT_NOISE,
+                      DIM_MEASUREMENT_NOISE>::Identity();
+  // 从状态中提取位置和姿态信息，将X投影到测量空间Y
+  m_G.block<3, 3>(INDEX_MEASUREMENT_POSI, INDEX_MEASUREMENT_POSI) =
+      Eigen::Matrix3d::Identity();
+  m_G.block<3, 3>(3, 6) = Eigen::Matrix3d::Identity();
+
+  m_gyro_bias = gyro_bias;
+  m_accel_bias = accel_bias;
+}
+
+ErrorStateKalmanFilter::ErrorStateKalmanFilter(double gravity, double pos_std,
+                                               double ori_std, double gyr_noise,
+                                               double acc_noise,
+                                               const std::string& filename) {
+  m_g = Eigen::Vector3d(0.0, 0.0, gravity);
+  // 初始化测量噪声矩阵
+  m_R.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity() * pos_std * pos_std;
+  m_R.block<3, 3>(3, 3) = Eigen::Matrix3d::Identity() * ori_std * ori_std;
+  // 初始化过程噪声协方差矩阵
+  m_Q.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity() * gyr_noise * gyr_noise;
+  m_Q.block<3, 3>(3, 3) = Eigen::Matrix3d::Identity() * acc_noise * acc_noise;
+  // 初始真值为0
+  m_X = Eigen::Matrix<double, DIM_STATE, 1>::Zero();
+  // 状态转移矩阵赋为0
+  m_F = Eigen::Matrix<double, DIM_STATE, DIM_STATE>::Zero();
+  // 测量噪声的变换矩阵
+  m_C = Eigen::Matrix<double, DIM_MEASUREMENT_NOISE,
+                      DIM_MEASUREMENT_NOISE>::Identity();
+  // 从状态中提取位置和姿态信息，将X投影到测量空间Y
+  m_G.block<3, 3>(INDEX_MEASUREMENT_POSI, INDEX_MEASUREMENT_POSI) =
+      Eigen::Matrix3d::Identity();
+  m_G.block<3, 3>(3, 6) = Eigen::Matrix3d::Identity();
+
+  if (!ReadParameters(filename)) {
+    std::cerr << "Failed to read parameters from file: " << filename
+              << std::endl;
+    return;
+  }
+}
 
 ErrorStateKalmanFilter::ErrorStateKalmanFilter(
     double gravity, double pos_noise, double vel_noise, double ori_noise,
@@ -42,6 +105,72 @@ ErrorStateKalmanFilter::ErrorStateKalmanFilter(
   m_G.block<3, 3>(INDEX_MEASUREMENT_POSI, INDEX_MEASUREMENT_POSI) =
       Eigen::Matrix3d::Identity();
   m_G.block<3, 3>(3, 6) = Eigen::Matrix3d::Identity();
+}
+
+bool ErrorStateKalmanFilter::ReadParameters(const std::string& filename) {
+  std::ifstream fin(filename);
+  if (!fin.is_open()) {
+    std::cerr << "Failed to open file: " << filename << std::endl;
+    return false;
+  }
+
+  std::string line;
+
+  // --- 读取 gyro_bias ---
+  while (std::getline(fin, line)) {
+    if (line.empty() || line[0] == '#') continue;  // 跳过注释或空行
+    std::istringstream iss(line);
+    for (int i = 0; i < 3; ++i) {
+      if (!(iss >> m_gyro_bias(i))) {
+        std::cerr << "Failed to read gyro_bias." << std::endl;
+        return false;
+      }
+    }
+    break;  // 读完一行gyro_bias
+  }
+
+  // --- 读取 accel_bias ---
+  while (std::getline(fin, line)) {
+    if (line.empty() || line[0] == '#') continue;
+    std::istringstream iss(line);
+    for (int i = 0; i < 3; ++i) {
+      if (!(iss >> m_accel_bias(i))) {
+        std::cerr << "Failed to read accel_bias." << std::endl;
+        return false;
+      }
+    }
+    break;  // 读完一行accel_bias
+  }
+
+  // --- 读取 P_matrix ---
+  int row = 0;
+  while (std::getline(fin, line)) {
+    if (line.empty() || line[0] == '#') continue;
+
+    if (row >= 15) {
+      std::cerr << "Too many rows for P_matrix." << std::endl;
+      return false;
+    }
+
+    std::istringstream iss(line);
+    for (int col = 0; col < 15; ++col) {
+      if (!(iss >> m_P(row, col))) {
+        std::cerr << "Failed to read P_matrix at row " << row << ", col " << col
+                  << std::endl;
+        return false;
+      }
+    }
+    row++;
+  }
+
+  if (row != 15) {
+    std::cerr << "Incomplete P_matrix rows: got " << row << std::endl;
+    return false;
+  }
+
+  fin.close();
+  std::cout << "Successfully loaded parameters from " << filename << std::endl;
+  return true;
 }
 
 void ErrorStateKalmanFilter::Init(Eigen::Matrix4d initPose,
@@ -131,7 +260,6 @@ bool ErrorStateKalmanFilter::Predict(Eigen::Vector3d imu_acc,
   // 计算状态转移矩阵
   Eigen::Matrix<double, DIM_STATE, DIM_STATE> Fk =
       Eigen::Matrix<double, DIM_STATE, DIM_STATE>::Identity() + m_F * delta_t;
-  //   TODO Q不会更新
   Eigen::Matrix<double, DIM_STATE, DIM_STATE_NOISE> Bk = m_B * delta_t;
   // 更新状态
   m_X = Fk * m_X;
@@ -186,4 +314,43 @@ void ErrorStateKalmanFilter::correct(Eigen::Vector3d slam_pos,
   m_accel_bias += m_X.block<3, 1>(INDEX_STATE_ACC_BIAS, 0);
   // 清空误差状态
   m_X = Eigen::Matrix<double, DIM_STATE, 1>::Zero();
+}
+
+bool ErrorStateKalmanFilter::printParameters(const std::string& filename) {
+  std::ofstream ofs(filename);
+  if (!ofs.is_open()) {
+    std::cerr << "Failed to open file for writing: " << filename << std::endl;
+    return false;
+  }
+
+  ofs << std::fixed << std::setprecision(8);
+
+  // 打印 gyro_bias （一行3个数）
+  ofs << "# gyro_bias\n";
+  for (int i = 0; i < 3; ++i) {
+    ofs << m_gyro_bias(i);
+    if (i != 2) ofs << " ";
+  }
+  ofs << "\n";
+
+  // 打印 accel_bias （一行3个数）
+  ofs << "# accel_bias\n";
+  for (int i = 0; i < 3; ++i) {
+    ofs << m_accel_bias(i);
+    if (i != 2) ofs << " ";
+  }
+  ofs << "\n";
+
+  // 打印 P 矩阵 （15行，每行15个数）
+  ofs << "# P_matrix\n";
+  for (unsigned int i = 0; i < DIM_STATE; ++i) {
+    for (unsigned int j = 0; j < DIM_STATE; ++j) {
+      ofs << m_P(i, j);
+      if (j != DIM_STATE - 1) ofs << " ";
+    }
+    ofs << "\n";
+  }
+
+  ofs.close();
+  return true;
 }

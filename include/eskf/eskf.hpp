@@ -1,6 +1,7 @@
 #pragma once
 #include <Eigen/Dense>
 #include <mutex>
+#include <string>
 
 class ErrorStateKalmanFilter {
  public:
@@ -26,6 +27,47 @@ class ErrorStateKalmanFilter {
                          double acc_bias_noise, double pos_vel_corr,
                          double pos_std, double ori_std, double gyr_noise,
                          double acc_noise);
+
+  /**
+   * @brief Construct a new Error State Kalman Filter object
+   *
+   * @param gravity 重力加速度
+   * @param pos_std 位置噪声
+   * @param vel_noise 速度噪声
+   * @param ori_std 姿态噪声
+   * @param gyr_noise 陀螺仪偏置噪声
+   * @param acc_noise 加速度计偏置噪声
+   * @param filename 文件路径 读取文件中的P gyro_bias accel_bias
+   */
+  ErrorStateKalmanFilter(double gravity, double pos_std, double ori_std,
+                         double gyr_noise, double acc_noise,
+                         const std::string& filename);
+  /**
+   * @brief Construct a new Error State Kalman Filter object
+   *
+   * @param gravity 重力加速度
+   * @param pos_std 位置噪声
+   * @param ori_std 姿态噪声
+   * @param gyr_noise 陀螺仪偏置噪声
+   * @param acc_noise 加速度计偏置噪声
+   * @param P 协方差矩阵
+   * @param gyro_bias 陀螺仪偏置
+   * @param accel_bias 加速度计偏置
+   */
+  ErrorStateKalmanFilter(double gravity, double pos_std, double ori_std,
+                         double gyr_noise, double acc_noise,
+                         const Eigen::Matrix<double, 15, 15> P,
+                         Eigen::Vector3d gyro_bias = Eigen::Vector3d::Zero(),
+                         Eigen::Vector3d accel_bias = Eigen::Vector3d::Zero());
+  /**
+   * @brief 读取yaml文件中的协方差矩阵 gyro_bias accel_bias
+   *
+   * @param filename yaml文件路径
+   * @return true
+   * @return false
+   */
+  bool ReadParameters(const std::string& filename);
+
   /**
    * @brief 初始化ESKF
    *
@@ -57,6 +99,15 @@ class ErrorStateKalmanFilter {
    * @param slam_q slam获取的旋转
    */
   void correct(Eigen::Vector3d slam_pos, Eigen::Quaterniond slam_q);
+
+  /**
+   * @brief 打印参数
+   *
+   * @param filename 文件名
+   * @return true 打印成功
+   * @return false 打印失败
+   */
+  bool printParameters(const std::string& filename);
 
  private:
   static const unsigned int DIM_STATE = 15;  // 状态量数量
