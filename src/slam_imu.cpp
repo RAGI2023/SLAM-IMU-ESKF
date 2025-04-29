@@ -4,7 +4,6 @@
 #include "ros/init.h"
 #include "ros/node_handle.h"
 #include "ros/publisher.h"
-#include "ros/ros.h"
 #include "ros/subscriber.h"
 #include "ros/time.h"
 #include "sensor_msgs/Imu.h"
