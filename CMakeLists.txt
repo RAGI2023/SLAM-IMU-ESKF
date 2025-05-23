@@ -29,8 +29,11 @@ find_package(rosidl_default_generators REQUIRED)
 
 
 add_executable(eskf src/slam_imu.cpp src/eskf.cpp)
+add_executable(eskf_2d src/slam_imu_2d.cpp src/eskf2D.cpp)
 target_include_directories(eskf PUBLIC ${CMAKE_SOURCE_DIR}/include ${EIGEN3_INCLUDE_DIR})
+target_include_directories(eskf_2d PUBLIC ${CMAKE_SOURCE_DIR}/include ${EIGEN3_INCLUDE_DIR})
 ament_target_dependencies(eskf rclcpp sensor_msgs nav_msgs)
+ament_target_dependencies(eskf_2d rclcpp sensor_msgs nav_msgs)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -46,11 +49,13 @@ ament_python_install_package(${PROJECT_NAME})
 
 install(TARGETS
   eskf
+  eskf_2d
   DESTINATION lib/${PROJECT_NAME}
 )
 
 install(PROGRAMS
   eskf/errorViewer.py
+  eskf/errorViewer2D.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
