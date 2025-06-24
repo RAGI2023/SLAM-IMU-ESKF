@@ -18,7 +18,7 @@
 #include <sensor_msgs/msg/imu.hpp>
 
 #include "eskf/eskf2D.hpp"
-
+#include "filter.hpp"
 class SLAM_IMU_Filter2D : public ErrorStateKalmanFilter2D, public rclcpp::Node {
  public:
   SLAM_IMU_Filter2D(const std::string &node_name, const std::string &imu_topic,
@@ -32,7 +32,8 @@ class SLAM_IMU_Filter2D : public ErrorStateKalmanFilter2D, public rclcpp::Node {
                                  gyr_bias_noise, acc_bias_noise, pos_vel_corr,
                                  pos_std, ori_std, gyr_noise, acc_noise),
         Node(node_name),
-        gravity_(gravity) {
+        gravity_(gravity),
+        filter_(30) {
     // 构建imu odom订阅 高频定位发布
     imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
         imu_topic, 1,
@@ -53,6 +54,7 @@ class SLAM_IMU_Filter2D : public ErrorStateKalmanFilter2D, public rclcpp::Node {
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odo_sub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr out_pub_;
   double gravity_;  // 重力加速度大小，正数
+  MedianFilter filter_;
 
   void initESKF(
       Eigen::Vector3d pose = Eigen::Vector3d::Zero(),
@@ -154,6 +156,7 @@ class SLAM_IMU_Filter2D : public ErrorStateKalmanFilter2D, public rclcpp::Node {
         pub_msg.twist.twist.angular.y = 0.0;
         pub_msg.twist.twist.angular.z = angle_vel;
 
+        pub_msg = filter_.filter(pub_msg);  // 滤波处理
         out_pub_->publish(pub_msg);
         RCLCPP_INFO_STREAM(this->get_logger(), "Predict Send");
       } else {
